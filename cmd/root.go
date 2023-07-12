@@ -1,6 +1,3 @@
-/*
-Copyright	 © 2023 Paras Raba
-*/
 package cmd
 
 import (
