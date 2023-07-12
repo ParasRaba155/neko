@@ -1,6 +1,3 @@
-/*
-Copyright © 2023 Paras Raba
-*/
 package cmd
 
 import (
@@ -15,9 +12,11 @@ import (
 
 // flag vars
 var (
-	numberNonBlank bool
-	showLineNumber bool
-    showEnds bool
+	numberNonBlank  bool
+	showLineNumber  bool
+	showEnds        bool
+	showNonPrinting bool
+	showTabs        bool
 )
 
 var (
@@ -45,25 +44,41 @@ var rootCmd = &cobra.Command{
 func printFileContent(f *os.File) {
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		lineNum += 1
 		line := sc.Text()
+		lineNum++
+		var result string
+
 		if line == "" {
-			numsOfEmptyLine += 1
+			numsOfEmptyLine++
 		}
+
 		if numberNonBlank {
-			if line == "" {
-				fmt.Println(line)
-				continue
+			if line != "" {
+				currLineNum := lineNum - numsOfEmptyLine
+				result = createNumberedLine(line, currLineNum)
 			}
-            currentNonEmptyLine := lineNum - numsOfEmptyLine
-            line = createNumberedLine(line, currentNonEmptyLine)
-            fmt.Println(line)
-			continue
 		}
-		if showLineNumber {
-            line = createNumberedLine(line, lineNum)
-			fmt.Println(line)
+
+		if showLineNumber && !numberNonBlank {
+			result = createNumberedLine(line, lineNum)
 		}
+
+		if showTabs {
+			result = strings.ReplaceAll(line, "\t", "^I")
+		}
+
+		if showEnds {
+			result = line + "$"
+		}
+
+		if showNonPrinting {
+			result = convertNonPrintin(line)
+		}
+		anyOpts := numberNonBlank || showLineNumber || showEnds || showNonPrinting || showTabs
+		if !anyOpts {
+			result = line
+		}
+		fmt.Println(result)
 	}
 	if err := sc.Err(); err != nil {
 		fmt.Printf("neko %s: %s\n", f.Name(), errors.Unwrap(err))
@@ -78,18 +93,41 @@ func leftPad(str string, size int, char string) string {
 	return str
 }
 
-func appendDollar(line string) string {
-    return line + "$"
-}
-
-func replaceTabs(line string) string {
-    return strings.ReplaceAll(line, "\t", "^I")
+func convertNonPrintin(line string) string {
+	var result string
+	for _, ch := range line {
+		if ch >= 32 {
+			if ch < 127 {
+				result += string(ch)
+			} else if ch == 127 {
+				result += "^?"
+			} else {
+				result += "M-"
+				if ch < 128+32 {
+					if ch < 128+127 {
+						result += string(ch - 128)
+					} else {
+						result += "^?"
+					}
+				} else {
+					result += "^"
+					result += string(ch - 128 + 64)
+				}
+			}
+		} else if ch == '\t' && !showTabs {
+			result += "\t"
+		} else {
+			result += "^"
+			result += string(ch + 64)
+		}
+	}
+	return result
 }
 
 func createNumberedLine(line string, num int) string {
 	paddedNum := leftPad(fmt.Sprintf("%d", num), 6, " ")
 	line = paddedNum + "  " + line
-    return line
+	return line
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -106,4 +144,6 @@ func init() {
 	rootCmd.Flags().BoolVarP(&numberNonBlank, "number-nonblank", "b", false, "number nonempty output lines, overrides -n")
 	rootCmd.Flags().BoolVarP(&showLineNumber, "number", "n", false, "number all output lines")
 	rootCmd.Flags().BoolVarP(&showEnds, "show-ends", "E", false, "display $ at end of each line")
+	rootCmd.Flags().BoolVarP(&showNonPrinting, "show-nonprinting", "v", false, "use ^ and M- notation, except for LFD and TAB")
+	rootCmd.Flags().BoolVarP(&showTabs, "show-tabs", "t", false, "display TAB characters as ^I")
 }
