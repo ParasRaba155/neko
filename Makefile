@@ -5,3 +5,9 @@ build:
 
 run:build
 	./bin/neko
+
+tidy:
+	$(GO) mod tidy
+
+test:
+	$(GO) test .
