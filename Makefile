@@ -10,4 +10,4 @@ tidy:
 	$(GO) mod tidy
 
 test:
-	$(GO) test .
+	$(GO) test -v

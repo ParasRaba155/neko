@@ -38,11 +38,28 @@ Examples:
   neko f - g  Output f's contents, then standard input, then g's contents.
 `
 
-func printFileContent(f *os.File, w io.Writer) {
-	sc := bufio.NewScanner(f)
+func printFileContent(r io.Reader, filename string) {
+	sc := bufio.NewScanner(r)
 	// sc.Split(bufio.ScanBytes)
 	buf := make([]byte, 1024)
 	sc.Buffer(buf, 512)
+
+	stdOut := bufio.NewWriter(os.Stdout)
+	defer func() {
+		err := stdOut.Flush()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "neko: %s could not flush the writer: %s", filename, err)
+		}
+	}()
+
+	stdErr := bufio.NewWriter(os.Stderr)
+	defer func() {
+		err := stdErr.Flush()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "neko: %s could not flush the writer: %s", filename, err)
+		}
+	}()
+
 	for sc.Scan() {
 		line := sc.Text()
 		lineNum++
@@ -81,18 +98,22 @@ func printFileContent(f *os.File, w io.Writer) {
 		}
 
 		if showNonPrinting {
-			res := b.String()
-			b.Reset()
-			b.WriteString(convertNonPrintin(res))
+			if b.Len() == 0 {
+				b.WriteString(convertNonPrintin(line))
+			} else {
+				res := b.String()
+				b.Reset()
+				b.WriteString(convertNonPrintin(res))
+			}
 		}
 		anyOpts := numberNonBlank || showLineNumber || showEnds || showNonPrinting || showTabs
 		if !anyOpts {
 			b.WriteString(line)
 		}
-		fmt.Fprintln(w, b.String())
+		fmt.Fprintln(stdOut, b.String())
 	}
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(w, "neko %s: %s\n", f.Name(), errors.Unwrap(err))
+		fmt.Fprintf(stdErr, "neko %s: %s\n", filename, errors.Unwrap(err))
 	}
 }
 
@@ -166,16 +187,11 @@ func init() {
 }
 
 func main() {
-	stdErr := bufio.NewWriterSize(os.Stderr, 1024)
-	defer stdErr.Flush()
-
-	stdOut := bufio.NewWriterSize(os.Stdout, 1024)
-	defer stdOut.Flush()
-
 	if len(os.Args) == 1 {
 		// the first argument by default is the name of the build file
 		// TODO:DEAL WITH NO ARGS
-		fmt.Fprintln(stdErr, "TODO: DEAL WITH no args")
+		fmt.Fprintln(os.Stderr, "TODO: DEAL WITH no args")
+		os.Exit(1)
 	}
 
 	flag.Usage = func() {
@@ -188,12 +204,12 @@ func main() {
 	for _, arg := range flag.Args() {
 		file, err := os.Open(arg)
 		if err != nil {
-			fmt.Fprintf(stdErr, "neko: %s: %s\n", arg, errors.Unwrap(err))
+			fmt.Fprintf(os.Stdout, "neko: %s: %s\n", arg, errors.Unwrap(err))
 		} else {
-			printFileContent(file, stdOut)
+			printFileContent(file, file.Name())
 			err = file.Close()
 			if err != nil {
-				fmt.Fprintf(stdErr, "neko: %s: %s\n", arg, errors.Unwrap(err))
+				fmt.Fprintf(os.Stderr, "neko: %s: %s\n", arg, errors.Unwrap(err))
 			}
 		}
 	}
