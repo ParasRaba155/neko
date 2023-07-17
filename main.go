@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
+
+	flag "github.com/spf13/pflag"
 )
 
 // flag vars
@@ -32,33 +34,18 @@ Concatenate FILE(s) to standard output.
   -n, --number             number all output lines
   -t, --show-tabs          display TAB characters as ^I
   -v, --show-nonprinting   use ^ and M- notation, except for LFD and TAB
-      --help     display this help and exit
+  -h, --help               display this help and exit
 
 Examples:
   neko f - g  Output f's contents, then standard input, then g's contents.
+  neko        Copy standard input to standard output.
 `
 
-func printFileContent(r io.Reader, filename string) {
+func printContent(r io.Reader, filename string) {
 	sc := bufio.NewScanner(r)
-	// sc.Split(bufio.ScanBytes)
+
 	buf := make([]byte, 1024)
 	sc.Buffer(buf, 512)
-
-	stdOut := bufio.NewWriter(os.Stdout)
-	defer func() {
-		err := stdOut.Flush()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "neko: %s could not flush the writer: %s", filename, err)
-		}
-	}()
-
-	stdErr := bufio.NewWriter(os.Stderr)
-	defer func() {
-		err := stdErr.Flush()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "neko: %s could not flush the writer: %s", filename, err)
-		}
-	}()
 
 	for sc.Scan() {
 		line := sc.Text()
@@ -101,19 +88,21 @@ func printFileContent(r io.Reader, filename string) {
 			if b.Len() == 0 {
 				b.WriteString(convertNonPrintin(line))
 			} else {
-				res := b.String()
+				temp := b.String()
 				b.Reset()
-				b.WriteString(convertNonPrintin(res))
+				b.WriteString(convertNonPrintin(temp))
 			}
 		}
+
 		anyOpts := numberNonBlank || showLineNumber || showEnds || showNonPrinting || showTabs
 		if !anyOpts {
 			b.WriteString(line)
 		}
-		fmt.Fprintln(stdOut, b.String())
+		fmt.Fprintln(os.Stdout, b.String())
 	}
+
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(stdErr, "neko %s: %s\n", filename, errors.Unwrap(err))
+		fmt.Fprintf(os.Stderr, "neko %s: %s\n", filename, errors.Unwrap(err))
 	}
 }
 
@@ -161,52 +150,45 @@ func convertNonPrintin(line string) string {
 }
 
 func createNumberedLine(line string, num int) string {
-	// paddedNum := leftPad(fmt.Sprintf("%d", num), 6, ' ')
-	// line = paddedNum + "  " + line
 	var b strings.Builder
-	b.WriteString(leftPad(fmt.Sprintf("%d", num), 6, ' '))
+	numStr := strconv.FormatInt(int64(num), 10)
+	b.WriteString(leftPad(numStr, 6, ' '))
 	b.WriteString("  ")
 	b.WriteString(line)
-	// return fmt.Sprintf("%s  %s", leftPad(fmt.Sprintf("%d", num), 6, ' '), line)
-	// return line
 	return b.String()
 }
 
 func init() {
 	// flags
-	flag.BoolVar(&numberNonBlank, "number-nonblank", false, "number nonempty output lines, overrides -n")
-	flag.BoolVar(&numberNonBlank, "b", false, "number nonempty output lines, overrides -n")
-	flag.BoolVar(&showLineNumber, "number", false, "number all output lines")
-	flag.BoolVar(&showLineNumber, "n", false, "number all output lines")
-	flag.BoolVar(&showEnds, "show-ends", false, "display $ at end of each line")
-	flag.BoolVar(&showEnds, "e", false, "display $ at end of each line")
-	flag.BoolVar(&showNonPrinting, "show-nonpriting", false, "use ^ and M- notation, except for LFD and TAB")
-	flag.BoolVar(&showNonPrinting, "v", false, "use ^ and M- notation, except for LFD and TAB")
-	flag.BoolVar(&showTabs, "show-tabs", false, "display TAB characters as ^I")
-	flag.BoolVar(&showTabs, "t", false, "display TAB characters as ^I")
+	flag.BoolVarP(&numberNonBlank, "number-nonblank", "b", false, "number nonempty output lines, overrides -n")
+	flag.BoolVarP(&showLineNumber, "number", "n", false, "number all output lines")
+	flag.BoolVarP(&showEnds, "show-ends", "e", false, "display $ at end of each line")
+	flag.BoolVarP(&showNonPrinting, "show-nonpriting", "v", false, "use ^ and M- notation, except for LFD and TAB")
+	flag.BoolVarP(&showTabs, "show-tabs", "t", false, "display TAB characters as ^I")
 }
 
 func main() {
-	if len(os.Args) == 1 {
-		// the first argument by default is the name of the build file
-		// TODO:DEAL WITH NO ARGS
-		fmt.Fprintln(os.Stderr, "TODO: DEAL WITH no args")
-		os.Exit(1)
-	}
-
 	flag.Usage = func() {
-		w := flag.CommandLine.Output()
-		fmt.Fprint(w, usage)
+		fmt.Fprint(os.Stderr, usage)
 	}
 
-	// FIXME: make flag parsing posix compliant
+	// TODO: make flag parsing posix compliant without the `pflag' dependency
 	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		printContent(os.Stdin, "stdin")
+	}
+
 	for _, arg := range flag.Args() {
+		if arg == "-" {
+			printContent(os.Stdin, "stdin")
+			continue
+		}
 		file, err := os.Open(arg)
 		if err != nil {
 			fmt.Fprintf(os.Stdout, "neko: %s: %s\n", arg, errors.Unwrap(err))
 		} else {
-			printFileContent(file, file.Name())
+			printContent(file, file.Name())
 			err = file.Close()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "neko: %s: %s\n", arg, errors.Unwrap(err))
