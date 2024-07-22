@@ -119,32 +119,51 @@ func leftPad(str string, size int, char rune) string {
 func convertNonPrintin(line string) string {
 	var result strings.Builder
 	for _, ch := range line {
-		if ch >= 32 {
-			if ch < 127 {
-				result.WriteRune(ch)
-			} else if ch == 127 {
-				result.WriteRune('^')
-				result.WriteRune('?')
-			} else {
-				result.WriteRune('M')
-				result.WriteRune('-')
-				if ch < 128+32 {
-					if ch < 128+127 {
-						result.WriteRune(ch - 128)
-					} else {
-						result.WriteRune('^')
-						result.WriteRune('?')
-					}
-				} else {
-					result.WriteRune('^')
-					result.WriteRune(ch - 128 + 64)
-				}
+		// from 32 to 127 where common day English ASCII resides
+		if ch < 32 {
+			// handle the tab char
+			if ch == '\t' && !showTabs {
+				result.WriteRune('\t')
+				continue
 			}
-		} else if ch == '\t' && !showTabs {
-			result.WriteRune('\t')
-		} else {
+			// for non tab char write carrot char and move on
 			result.WriteRune('^')
+			continue
 		}
+
+		// now handle the English ASCII chars
+		if ch < 127 {
+			result.WriteRune(ch)
+			continue
+		}
+
+		// if char is delete char i.e. 127
+		if ch == '\x7F' {
+			result.WriteRune('^')
+			result.WriteRune('?')
+			continue
+		}
+
+		// handle non ASCII characters
+		result.WriteRune('M')
+		result.WriteRune('-')
+
+		// range 128 to 159 is to be mapped to lower ASCII
+		if ch < 128+32 {
+			result.WriteRune(ch - 128)
+			continue
+		}
+
+		// 255 is treated as special delete character
+		if ch == 128+127 {
+			result.WriteRune('^')
+			result.WriteRune('?')
+			continue
+		}
+
+		// convert other control characters to carrot
+		result.WriteRune('^')
+		result.WriteRune(ch - 128 + 64)
 	}
 	return result.String()
 }
