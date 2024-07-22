@@ -21,10 +21,14 @@ var (
 	showTabs        bool
 )
 
-var (
-	lineNum         = 0
-	numsOfEmptyLine = 0
-)
+// opts for the command line
+type Opts struct {
+	numberNonBlank  bool
+	showLineNumber  bool
+	showEnds        bool
+	showNonPrinting bool
+	showTabs        bool
+}
 
 const usage = `Usage: neko [OPTION]... [FILE]...
 Concatenate FILE(s) to standard output.
@@ -41,7 +45,13 @@ Examples:
   neko        Copy standard input to standard output.
 `
 
-func printContent(r io.Reader, filename string) {
+func printContent(r io.Reader, filename string, opts Opts) {
+	// to keep track of line number
+	var (
+		lineNum         int
+		numsOfEmptyLine int
+	)
+
 	sc := bufio.NewScanner(r)
 
 	buf := make([]byte, 1024)
@@ -56,18 +66,18 @@ func printContent(r io.Reader, filename string) {
 			numsOfEmptyLine++
 		}
 
-		if numberNonBlank {
+		if opts.numberNonBlank {
 			if line != "" {
 				currLineNum := lineNum - numsOfEmptyLine
 				b.WriteString(createNumberedLine(line, currLineNum))
 			}
 		}
 
-		if showLineNumber && !numberNonBlank {
+		if opts.showLineNumber && !opts.numberNonBlank {
 			b.WriteString(createNumberedLine(line, lineNum))
 		}
 
-		if showTabs {
+		if opts.showTabs {
 			if b.Len() == 0 {
 				b.WriteString(strings.ReplaceAll(line, "\t", "^I"))
 			} else {
@@ -77,24 +87,25 @@ func printContent(r io.Reader, filename string) {
 			}
 		}
 
-		if showEnds {
+		if opts.showEnds {
 			if b.Len() == 0 {
 				b.WriteString(line)
 			}
 			b.WriteRune('$')
 		}
 
-		if showNonPrinting {
+		if opts.showNonPrinting {
 			if b.Len() == 0 {
-				b.WriteString(convertNonPrintin(line))
+				b.WriteString(convertNonPrintin(line, opts.showTabs))
 			} else {
 				temp := b.String()
 				b.Reset()
-				b.WriteString(convertNonPrintin(temp))
+				b.WriteString(convertNonPrintin(temp, opts.showTabs))
 			}
 		}
 
-		anyOpts := numberNonBlank || showLineNumber || showEnds || showNonPrinting || showTabs
+		anyOpts := opts.numberNonBlank || opts.showLineNumber || opts.showEnds ||
+			opts.showNonPrinting || opts.showTabs
 		if !anyOpts {
 			b.WriteString(line)
 		}
@@ -116,7 +127,7 @@ func leftPad(str string, size int, char rune) string {
 	return b.String()
 }
 
-func convertNonPrintin(line string) string {
+func convertNonPrintin(line string, showTabs bool) string {
 	var result strings.Builder
 	for _, ch := range line {
 		// from 32 to 127 where common day English ASCII resides
@@ -179,10 +190,22 @@ func createNumberedLine(line string, num int) string {
 
 func init() {
 	// flags
-	flag.BoolVarP(&numberNonBlank, "number-nonblank", "b", false, "number nonempty output lines, overrides -n")
+	flag.BoolVarP(
+		&numberNonBlank,
+		"number-nonblank",
+		"b",
+		false,
+		"number nonempty output lines, overrides -n",
+	)
 	flag.BoolVarP(&showLineNumber, "number", "n", false, "number all output lines")
 	flag.BoolVarP(&showEnds, "show-ends", "e", false, "display $ at end of each line")
-	flag.BoolVarP(&showNonPrinting, "show-nonpriting", "v", false, "use ^ and M- notation, except for LFD and TAB")
+	flag.BoolVarP(
+		&showNonPrinting,
+		"show-nonpriting",
+		"v",
+		false,
+		"use ^ and M- notation, except for LFD and TAB",
+	)
 	flag.BoolVarP(&showTabs, "show-tabs", "t", false, "display TAB characters as ^I")
 }
 
@@ -193,25 +216,32 @@ func main() {
 
 	// TODO: make flag parsing posix compliant without the `pflag' dependency
 	flag.Parse()
+	opt := Opts{
+		numberNonBlank:  numberNonBlank,
+		showLineNumber:  showLineNumber,
+		showEnds:        showEnds,
+		showNonPrinting: showNonPrinting,
+		showTabs:        showTabs,
+	}
 
 	if len(flag.Args()) == 0 {
-		printContent(os.Stdin, "stdin")
+		printContent(os.Stdin, "stdin", opt)
 	}
 
 	for _, arg := range flag.Args() {
 		if arg == "-" {
-			printContent(os.Stdin, "stdin")
+			printContent(os.Stdin, "stdin", opt)
 			continue
 		}
 		file, err := os.Open(arg)
 		if err != nil {
 			fmt.Fprintf(os.Stdout, "neko: %s: %s\n", arg, errors.Unwrap(err))
-		} else {
-			printContent(file, file.Name())
-			err = file.Close()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "neko: %s: %s\n", arg, errors.Unwrap(err))
-			}
+			return
+		}
+		printContent(file, file.Name(), opt)
+		err = file.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "neko: %s: %s\n", arg, errors.Unwrap(err))
 		}
 	}
 }

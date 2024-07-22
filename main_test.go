@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 func TestLeftPad(t *testing.T) {
 	type input struct {
@@ -42,7 +46,7 @@ func TestLeftPad(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got := leftPad(test.input.str, test.input.size, test.input.char)
 			if got != test.expected {
-				t.Fatalf("got = %q expected = %q", got, test.expected)
+				t.Errorf("got = %q expected = %q", got, test.expected)
 			}
 		})
 	}
@@ -105,7 +109,38 @@ func TestCreateNumberdLine(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got := createNumberedLine(test.input.line, test.input.num)
 			if got != test.expected {
-				t.Fatalf("got = %q expected = %q", got, test.expected)
+				t.Errorf("got = %q expected = %q", got, test.expected)
+			}
+		})
+	}
+}
+
+func getAllPrintableASCII() []byte {
+	result := make([]byte, 0, 127-32+1)
+	var i byte
+	for i = 32; i < 127; i++ {
+		result = append(result, i)
+	}
+	return result
+}
+
+func TestConvertNonPritnin(t *testing.T) {
+	testCases := map[string]struct {
+		input    []byte
+		showTabs bool
+		expected string
+	}{
+		"All ASCII Chars": {
+			input:    getAllPrintableASCII(),
+			expected: string(getAllPrintableASCII()),
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got := convertNonPrintin(string(test.input), test.showTabs)
+			if !cmp.Equal(got, test.expected) {
+				t.Errorf("convertNonPrintin(%s) mismatch (-want +got):\n%s", string(test.input), cmp.Diff(got, test.expected))
 			}
 		})
 	}
