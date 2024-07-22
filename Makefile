@@ -1,13 +1,11 @@
-GO := $(HOME)/go/bin/go1.20.5
-
 build:
-	$(GO) build -o ./bin/neko .
+	go build -o ./bin/neko .
 
 run:build
 	./bin/neko
 
 tidy:
-	$(GO) mod tidy
+	go mod tidy
 
 test:
-	$(GO) test -v
+	go test -v
