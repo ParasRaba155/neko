@@ -104,11 +104,11 @@ func printContent(r io.Reader, filename string, opts Opts) {
 		// otherwise convert the chars of line and then write it to builder
 		if opts.showNonPrinting {
 			if b.Len() == 0 {
-				b.WriteString(convertNonPrintin(line, opts.showTabs))
+				b.WriteString(convertNonPrintingChars(line))
 			} else {
 				temp := b.String()
 				b.Reset()
-				b.WriteString(convertNonPrintin(temp, opts.showTabs))
+				b.WriteString(convertNonPrintingChars(temp))
 			}
 		}
 
@@ -136,14 +136,15 @@ func leftPad(str string, size int, char rune) string {
 	return b.String()
 }
 
-// convertNonPrintin will convert non printing ASCII values certain readable ASCII values
-func convertNonPrintin(line string, showTabs bool) string {
+// convertNonPrintingChars will convert non printing ASCII values certain readable ASCII values
+// It will leave '\t' character as it is
+func convertNonPrintingChars(line string) string {
 	var result strings.Builder
 	for _, ch := range line {
 		// from 32 to 127 where common day English ASCII resides
 		if ch < 32 {
 			// handle the tab char
-			if ch == '\t' && !showTabs {
+			if ch == '\t' {
 				result.WriteRune('\t')
 				continue
 			}

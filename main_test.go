@@ -120,7 +120,6 @@ func TestCreateNumberdLine(t *testing.T) {
 func TestConvertNonPrintin(t *testing.T) {
 	tests := map[string]struct {
 		input    string
-		showTabs bool
 		expected string
 	}{
 		// NOTE: Go strings are sequences of bytes, and when you use non-ASCII values
@@ -130,15 +129,10 @@ func TestConvertNonPrintin(t *testing.T) {
 			expected: "^?M-^?",
 		},
 		"Handling ASCII less than 32": {
-			input:    "\x01\x02\x04",
-			expected: "^^^",
+			input:    "\x01\x02\x04\t",
+			expected: "^^^\t",
 		},
-		"Handling tab character with showTabs": {
-			input:    "Hello \tWorld",
-			expected: "Hello ^World",
-			showTabs: true,
-		},
-		"Handling tab character without showTabs": {
+		"Handling tab character": {
 			input:    "Hello \tWorld",
 			expected: "Hello \tWorld",
 		},
@@ -158,7 +152,7 @@ func TestConvertNonPrintin(t *testing.T) {
 		tt := tt // capture range variable
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			result := convertNonPrintin(tt.input, tt.showTabs)
+			result := convertNonPrintingChars(tt.input)
 			if result != tt.expected {
 				t.Errorf("got = %q expected = %q", result, tt.expected)
 			}
