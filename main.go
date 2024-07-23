@@ -45,6 +45,9 @@ Examples:
   neko        Copy standard input to standard output.
 `
 
+// printContent will read the content from reader in buffered manner
+//
+// filename for knowing which file is being read
 func printContent(r io.Reader, filename string, opts Opts) {
 	// to keep track of line number
 	var (
@@ -54,8 +57,9 @@ func printContent(r io.Reader, filename string, opts Opts) {
 
 	sc := bufio.NewScanner(r)
 
+	// buffer the scanner
 	buf := make([]byte, 1024)
-	sc.Buffer(buf, 512)
+	sc.Buffer(buf, 1024)
 
 	for sc.Scan() {
 		line := sc.Text()
@@ -77,6 +81,8 @@ func printContent(r io.Reader, filename string, opts Opts) {
 			b.WriteString(createNumberedLine(line, lineNum))
 		}
 
+		// if builder has not written any byte than simply replace '/t' with '^I'
+		// otherwise change the content of what is written in builder by replacing '/t' with '^I'
 		if opts.showTabs {
 			if b.Len() == 0 {
 				b.WriteString(strings.ReplaceAll(line, "\t", "^I"))
@@ -94,6 +100,8 @@ func printContent(r io.Reader, filename string, opts Opts) {
 			b.WriteRune('$')
 		}
 
+		// if builder has written something than convert those chars
+		// otherwise convert the chars of line and then write it to builder
 		if opts.showNonPrinting {
 			if b.Len() == 0 {
 				b.WriteString(convertNonPrintin(line, opts.showTabs))
@@ -117,6 +125,7 @@ func printContent(r io.Reader, filename string, opts Opts) {
 	}
 }
 
+// leftPad for padding the string with chars with size number of characters
 func leftPad(str string, size int, char rune) string {
 	var b strings.Builder
 	toBepadded := size - len(str)
@@ -127,6 +136,7 @@ func leftPad(str string, size int, char rune) string {
 	return b.String()
 }
 
+// convertNonPrintin will convert non printing ASCII values certain readable ASCII values
 func convertNonPrintin(line string, showTabs bool) string {
 	var result strings.Builder
 	for _, ch := range line {
@@ -174,6 +184,7 @@ func convertNonPrintin(line string, showTabs bool) string {
 
 		// convert other control characters to carrot
 		result.WriteRune('^')
+		// map the ASCII 160:255 -> 96:191
 		result.WriteRune(ch - 128 + 64)
 	}
 	return result.String()
