@@ -41,7 +41,9 @@ func TestLeftPad(t *testing.T) {
 	}
 
 	for name, test := range testCases {
+		test := test
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			got := leftPad(test.input.str, test.input.size, test.input.char)
 			if got != test.expected {
 				t.Errorf("got = %q expected = %q", got, test.expected)
