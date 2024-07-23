@@ -1,10 +1,7 @@
 package main
 
 import (
-	"strings"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestLeftPad(t *testing.T) {
@@ -107,6 +104,7 @@ func TestCreateNumberdLine(t *testing.T) {
 	}
 
 	for name, test := range testCases {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			got := createNumberedLine(test.input.line, test.input.num)
@@ -117,65 +115,51 @@ func TestCreateNumberdLine(t *testing.T) {
 	}
 }
 
-func getAllPrintableASCII() []byte {
-	result := make([]byte, 0, 127-32+1)
-	var i byte
-	for i = 32; i < 127; i++ {
-		result = append(result, i)
+func TestConvertNonPrintin(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		showTabs bool
+		expected string
+	}{
+		// NOTE: Go strings are sequences of bytes, and when you use non-ASCII values
+		// they are interpreted using the Latin-1 encoding for byte values between 128 and 255 (VIA OpenAI)
+		"Handling ASCII 128 and 255 Delete Chars": {
+			input:    "\x7fÿ", // '\x7f' is ASCII 127 and 'ÿ' is ASCII 255
+			expected: "^?M-^?",
+		},
+		"Handling ASCII less than 32": {
+			input:    "\x01\x02\x04",
+			expected: "^^^",
+		},
+		"Handling tab character with showTabs": {
+			input:    "Hello \tWorld",
+			expected: "Hello ^World",
+			showTabs: true,
+		},
+		"Handling tab character without showTabs": {
+			input:    "Hello \tWorld",
+			expected: "Hello \tWorld",
+		},
+		"Handling the ASCII between 128 to 159": {
+			// ASCII 128, 131, 159
+			input:    "\u0080\u0083\u009f",
+			expected: "M-\x00M-\x03M-\x1f",
+		},
+		"Handling the ASCII between 160 to 254": {
+			// ASCII 160, 172, 250, 254
+			input:    "\u00a0¬úþ",
+			expected: "M-^`M-^lM-^ºM-^¾",
+		},
 	}
-	return result
-}
 
-func getAllCharsLessThan32() [32]byte {
-	var result [32]byte
-	var i byte
-	for i = 0; i < 32; i++ {
-		result[i] = i
-	}
-	return result
-}
-
-func TestConvertNonPritnin(t *testing.T) {
-	t.Parallel()
-	t.Run("Common English ASCII Chars", func(t *testing.T) {
-		input, expected := getAllPrintableASCII(), string(getAllPrintableASCII())
-		got := convertNonPrintin(string(input), false)
-		if !cmp.Equal(got, expected) {
-			diff := cmp.Diff(got, expected)
-			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("Characters with ASCII less than 32 and showTabs", func(t *testing.T) {
-		input := getAllCharsLessThan32()
-		var s strings.Builder
-		for range input {
-			s.WriteRune('^')
-		}
-
-		got := convertNonPrintin(string(input[:]), true)
-		if !cmp.Equal(got, s.String()) {
-			diff := cmp.Diff(got, s.String())
-			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("Characters with ASCII less than 32 and !showTabs", func(t *testing.T) {
-		input := getAllCharsLessThan32()
-
-		var s strings.Builder
-		for i := range input {
-			if input[i] == '\t' {
-				s.WriteRune('\t')
-				continue
+	for name, tt := range tests {
+		tt := tt // capture range variable
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			result := convertNonPrintin(tt.input, tt.showTabs)
+			if result != tt.expected {
+				t.Errorf("got = %q expected = %q", result, tt.expected)
 			}
-			s.WriteRune('^')
-		}
-
-		got := convertNonPrintin(string(input[:]), false)
-		if !cmp.Equal(got, s.String()) {
-			diff := cmp.Diff(got, s.String())
-			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
-		}
-	})
+		})
+	}
 }
