@@ -166,7 +166,7 @@ func convertNonPrintin(line string, showTabs bool) string {
 		}
 
 		// 255 is treated as special delete character
-		if ch == 128+127 {
+		if ch == '\xFF' {
 			result.WriteRune('^')
 			result.WriteRune('?')
 			continue
