@@ -7,5 +7,11 @@ run:build
 tidy:
 	go mod tidy
 
-test:
+test-verbose:
 	go test -v
+
+test:
+	go test ./...
+
+format:
+	go fmt ./...

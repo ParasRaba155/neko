@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -107,6 +108,7 @@ func TestCreateNumberdLine(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			got := createNumberedLine(test.input.line, test.input.num)
 			if got != test.expected {
 				t.Errorf("got = %q expected = %q", got, test.expected)
@@ -124,24 +126,56 @@ func getAllPrintableASCII() []byte {
 	return result
 }
 
-func TestConvertNonPritnin(t *testing.T) {
-	testCases := map[string]struct {
-		input    []byte
-		showTabs bool
-		expected string
-	}{
-		"All ASCII Chars": {
-			input:    getAllPrintableASCII(),
-			expected: string(getAllPrintableASCII()),
-		},
+func getAllCharsLessThan32() [32]byte {
+	var result [32]byte
+	var i byte
+	for i = 0; i < 32; i++ {
+		result[i] = i
 	}
+	return result
+}
 
-	for name, test := range testCases {
-		t.Run(name, func(t *testing.T) {
-			got := convertNonPrintin(string(test.input), test.showTabs)
-			if !cmp.Equal(got, test.expected) {
-				t.Errorf("convertNonPrintin(%s) mismatch (-want +got):\n%s", string(test.input), cmp.Diff(got, test.expected))
+func TestConvertNonPritnin(t *testing.T) {
+	t.Parallel()
+	t.Run("Common English ASCII Chars", func(t *testing.T) {
+		input, expected := getAllPrintableASCII(), string(getAllPrintableASCII())
+		got := convertNonPrintin(string(input), false)
+		if !cmp.Equal(got, expected) {
+			diff := cmp.Diff(got, expected)
+			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("Characters with ASCII less than 32 and showTabs", func(t *testing.T) {
+		input := getAllCharsLessThan32()
+		var s strings.Builder
+		for range input {
+			s.WriteRune('^')
+		}
+
+		got := convertNonPrintin(string(input[:]), true)
+		if !cmp.Equal(got, s.String()) {
+			diff := cmp.Diff(got, s.String())
+			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("Characters with ASCII less than 32 and !showTabs", func(t *testing.T) {
+		input := getAllCharsLessThan32()
+
+		var s strings.Builder
+		for i := range input {
+			if input[i] == '\t' {
+				s.WriteRune('\t')
+				continue
 			}
-		})
-	}
+			s.WriteRune('^')
+		}
+
+		got := convertNonPrintin(string(input[:]), false)
+		if !cmp.Equal(got, s.String()) {
+			diff := cmp.Diff(got, s.String())
+			t.Errorf("convertNonPrintin() mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
